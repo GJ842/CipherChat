@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Developer dashboard for monitoring the image encryption pipeline in real time." />
+  <title>CipherChat — Developer Dashboard</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>" />
+</head>
+<body>
+  <div class="dev-container">
+
+    <!-- ── Header ──────────────────────────────────────────── -->
+    <div class="dev-header">
+      <div class="dev-header-left">
+        <h1>🔐 CipherChat</h1>
+        <span class="dev-badge">Developer View</span>
+      </div>
+      <div class="dev-stats">
+        <span>Messages: <span class="count" id="dev-msg-count">0</span></span>
+        <span>Sessions: <span class="count" id="dev-session-count">0</span></span>
+      </div>
+    </div>
+
+    <!-- ── Body ────────────────────────────────────────────── -->
+    <div class="dev-body">
+
+      <!-- 2×2 Image Grid -->
+      <div class="dev-grid">
+
+        <!-- Panel 1: Message Image -->
+        <div class="dev-image-panel panel-1">
+          <div class="dev-panel-header">
+            <div class="dev-panel-title">
+              <div class="dev-panel-number">1</div>
+              <div>
+                <div class="dev-panel-name">Message Image</div>
+                <div class="dev-panel-desc">Raw text encoded as RGB pixels</div>
+              </div>
+            </div>
+          </div>
+          <div class="dev-canvas-wrapper">
+            <canvas id="dev-canvas-message" width="64" height="64"></canvas>
+            <div class="dev-canvas-empty" id="dev-empty-1">Awaiting first message...</div>
+          </div>
+        </div>
+
+        <!-- Panel 2: Key Image -->
+        <div class="dev-image-panel panel-2">
+          <div class="dev-panel-header">
+            <div class="dev-panel-title">
+              <div class="dev-panel-number">2</div>
+              <div>
+                <div class="dev-panel-name">Key Image</div>
+                <div class="dev-panel-desc">Cryptographically random pixel key</div>
+              </div>
+            </div>
+          </div>
+          <div class="dev-canvas-wrapper">
+            <canvas id="dev-canvas-key" width="64" height="64"></canvas>
+            <div class="dev-canvas-empty" id="dev-empty-2">Awaiting first message...</div>
+          </div>
+        </div>
+
+        <!-- Panel 3: Cipher Image -->
+        <div class="dev-image-panel panel-3">
+          <div class="dev-panel-header">
+            <div class="dev-panel-title">
+              <div class="dev-panel-number">3</div>
+              <div>
+                <div class="dev-panel-name">Cipher Image</div>
+                <div class="dev-panel-desc">XOR(Message ⊕ Key) — transmitted data</div>
+              </div>
+            </div>
+          </div>
+          <div class="dev-canvas-wrapper">
+            <canvas id="dev-canvas-cipher" width="64" height="64"></canvas>
+            <div class="dev-canvas-empty" id="dev-empty-3">Awaiting first message...</div>
+          </div>
+        </div>
+
+        <!-- Panel 4: Decrypted Image -->
+        <div class="dev-image-panel panel-4">
+          <div class="dev-panel-header">
+            <div class="dev-panel-title">
+              <div class="dev-panel-number">4</div>
+              <div>
+                <div class="dev-panel-name">Decrypted Image</div>
+                <div class="dev-panel-desc">XOR(Cipher ⊕ Key) — recovered original</div>
+              </div>
+            </div>
+          </div>
+          <div class="dev-canvas-wrapper">
+            <canvas id="dev-canvas-decrypted" width="64" height="64"></canvas>
+            <div class="dev-canvas-empty" id="dev-empty-4">Awaiting first message...</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Log Panel ─────────────────────────────────────── -->
+      <div class="dev-log">
+        <div class="dev-log-header">📝 Message Log</div>
+        <div class="dev-log-entries" id="dev-log-entries">
+          <div class="dev-log-empty" id="dev-log-empty">
+            Waiting for encrypted messages...<br /><br />
+            Open the chat at <strong>/</strong> and start sending messages to see the encryption pipeline here.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    (() => {
+      const socket = io();
+      let messageCount = 0;
+      const activeSessions = new Set();
+
+      // DOM
+      const canvasMessage   = document.getElementById('dev-canvas-message');
+      const canvasKey       = document.getElementById('dev-canvas-key');
+      const canvasCipher    = document.getElementById('dev-canvas-cipher');
+      const canvasDecrypted = document.getElementById('dev-canvas-decrypted');
+      const logEntries      = document.getElementById('dev-log-entries');
+      const logEmpty        = document.getElementById('dev-log-empty');
+      const msgCountEl      = document.getElementById('dev-msg-count');
+      const sessionCountEl  = document.getElementById('dev-session-count');
+
+      /**
+       * Render pixel data array onto a canvas, scaled up.
+       */
+      function renderToCanvas(canvasEl, dataArray, width, height) {
+        canvasEl.width = width;
+        canvasEl.height = height;
+        const ctx = canvasEl.getContext('2d');
+        const imageData = ctx.createImageData(width, height);
+        for (let i = 0; i < dataArray.length && i < imageData.data.length; i++) {
+          imageData.data[i] = dataArray[i];
+        }
+        ctx.putImageData(imageData, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+      }
+
+      /**
+       * Flash animation on canvas.
+       */
+      function flashCanvas(canvas) {
+        canvas.classList.remove('canvas-flash');
+        void canvas.offsetWidth;
+        canvas.classList.add('canvas-flash');
+      }
+
+      /**
+       * Handle incoming pipeline data from server.
+       */
+      socket.on('dev-pipeline', (payload) => {
+        messageCount++;
+        activeSessions.add(payload.sessionId);
+        msgCountEl.textContent = messageCount;
+        sessionCountEl.textContent = activeSessions.size;
+
+        const { messageData, keyData, cipherData, decryptedData, width, height } = payload;
+
+        // Render all 4 canvases
+        if (messageData) {
+          renderToCanvas(canvasMessage, messageData, width, height);
+          flashCanvas(canvasMessage);
+          document.getElementById('dev-empty-1').style.display = 'none';
+        }
+        if (keyData) {
+          renderToCanvas(canvasKey, keyData, width, height);
+          flashCanvas(canvasKey);
+          document.getElementById('dev-empty-2').style.display = 'none';
+        }
+        if (cipherData) {
+          renderToCanvas(canvasCipher, cipherData, width, height);
+          flashCanvas(canvasCipher);
+          document.getElementById('dev-empty-3').style.display = 'none';
+        }
+        if (decryptedData) {
+          renderToCanvas(canvasDecrypted, decryptedData, width, height);
+          flashCanvas(canvasDecrypted);
+          document.getElementById('dev-empty-4').style.display = 'none';
+        }
+
+        // Add log entry
+        if (logEmpty) logEmpty.style.display = 'none';
+
+        const entry = document.createElement('div');
+        entry.classList.add('dev-log-entry');
+
+        const time = new Date(payload.timestamp).toLocaleTimeString([], {
+          hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+
+        // Extract a snippet of cipher data for display
+        const cipherSnippet = cipherData
+          ? cipherData.slice(0, 60).map(v => v.toString(16).padStart(2, '0')).join('')
+          : '...';
+
+        entry.innerHTML = `
+          <div class="dev-log-entry-header">
+            <span class="dev-log-sender">${escapeHtml(payload.senderName)}</span>
+            <span class="dev-log-session">${payload.sessionId}</span>
+          </div>
+          <div class="dev-log-original">"${escapeHtml(payload.originalText)}"</div>
+          <div class="dev-log-cipher">Cipher: ${cipherSnippet}...</div>
+          <div class="dev-log-time">${time}</div>
+        `;
+
+        logEntries.insertBefore(entry, logEntries.firstChild);
+
+        // Keep only last 50 entries
+        while (logEntries.children.length > 51) {
+          logEntries.removeChild(logEntries.lastChild);
+        }
+      });
+
+      function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str || '';
+        return div.innerHTML;
+      }
+
+      // Poll session count
+      setInterval(async () => {
+        try {
+          const res = await fetch('/api/sessions');
+          const sessions = await res.json();
+          sessionCountEl.textContent = sessions.length;
+        } catch (e) {}
+      }, 5000);
+    })();
+  </script>
+</body>
+</html>

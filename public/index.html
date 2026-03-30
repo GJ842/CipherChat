@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description"
+    content="End-to-end encrypted chat with DH key exchange, AES-256-GCM, HMAC signing, and image-based XOR encryption. Send text, images, files, and voice messages securely." />
+  <title>CipherChat — E2E Encrypted Messaging</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>" />
+</head>
+
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       LOBBY SCREEN
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="lobby-screen">
+    <div class="lobby-container glass">
+      <div class="lobby-logo">
+        <div class="lock-icon">🔐</div>
+        <h1>CipherChat</h1>
+      </div>
+      <p class="lobby-subtitle">
+        Text, images, and voice — all end-to-end encrypted through pixels.
+      </p>
+
+      <div class="security-badges">
+        <span class="sec-badge">🔑 Diffie-Hellman</span>
+        <span class="sec-badge">🛡️ AES-256-GCM</span>
+        <span class="sec-badge">✅ HMAC Signed</span>
+        <span class="sec-badge">🖼️ XOR Pixels</span>
+      </div>
+
+      <div class="input-group">
+        <label for="nickname-input">Your Nickname</label>
+        <input type="text" id="nickname-input" placeholder="Enter your name..." maxlength="24" autocomplete="off" />
+      </div>
+
+      <div class="lobby-actions">
+        <button class="btn btn-primary" id="create-btn">
+          <span>⚡</span> Create New Session
+        </button>
+      </div>
+
+      <div class="divider">or join existing</div>
+
+      <div class="input-group">
+        <label for="session-id-input">Session ID</label>
+        <input type="text" id="session-id-input" placeholder="e.g. A1B2C3D4" maxlength="8" autocomplete="off"
+          style="text-transform: uppercase; font-family: 'JetBrains Mono', monospace; letter-spacing: 2px;" />
+      </div>
+
+      <div class="lobby-actions">
+        <button class="btn btn-secondary" id="join-btn">
+          <span>🔗</span> Join Session
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       CHAT SCREEN
+       ═══════════════════════════════════════════════════════════ -->
+  <div id="chat-screen">
+    <!-- Header -->
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <div class="session-badge">
+          <span class="pulse"></span>
+          <span id="session-badge-id">--------</span>
+        </div>
+        <div class="user-count-wrapper">
+          <span class="user-count" id="user-count">0 users online</span>
+          <div class="user-tooltip" id="user-tooltip">
+            <div class="user-tooltip-title">Active Users</div>
+            <ul class="user-tooltip-list" id="user-tooltip-list"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="chat-header-right">
+        <button class="btn btn-secondary btn-sm" id="copy-session-btn">📋 Copy ID</button>
+        <button class="btn btn-danger btn-sm" id="leave-btn">Leave</button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="chat-body">
+      <!-- Main Chat -->
+      <div class="chat-main">
+        <!-- Drop overlay for drag & drop -->
+        <div class="drop-overlay" id="drop-overlay">
+          <div class="drop-overlay-content">
+            <div class="drop-icon">📎</div>
+            <div class="drop-text">Drop files to encrypt & send</div>
+            <div class="drop-subtext">Images only (JPEG, PNG, GIF, WebP, etc.)</div>
+          </div>
+        </div>
+
+        <div class="messages-container" id="messages-container">
+          <!-- Messages rendered here -->
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="typing-indicator" id="typing-indicator">
+          <div class="typing-dots">
+            <span></span><span></span><span></span>
+          </div>
+          <span class="typing-text" id="typing-names">Someone is typing</span>
+        </div>
+
+        <div class="chat-input-area">
+          <input type="file" id="file-upload" accept="image/*" style="display: none;" />
+
+          <!-- Recording overlay -->
+          <div class="recording-overlay" id="recording-overlay">
+            <div class="recording-dot"></div>
+            <span id="recording-timer">00:00</span>
+            <div class="live-waveform" id="live-waveform">
+              <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+              <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+              <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+              <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+              <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+              <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+              <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+              <div class="live-bar"></div><div class="live-bar"></div><div class="live-bar"></div>
+            </div>
+            <span class="recording-label">Click 🎙️ to stop</span>
+          </div>
+
+          <div class="chat-input-wrapper">
+            <button class="attach-btn" id="attach-btn" title="Send encrypted file">📎</button>
+            <input type="text" id="message-input" placeholder="Type an encrypted message..." autocomplete="off"
+              maxlength="500" />
+            <button class="voice-btn" id="voice-btn" title="Click to record voice message">🎙️</button>
+            <button class="send-btn" id="send-btn" title="Send encrypted message">➤</button>
+          </div>
+          <div class="encryption-status">
+            <span>🔐</span>
+            <span id="encryption-status-text">End-to-end image encrypted</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar Toggle -->
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Encryption Pipeline">
+        <span class="sidebar-toggle-icon" id="sidebar-toggle-icon">▶</span>
+      </button>
+
+      <!-- Encryption Sidebar -->
+      <div class="encryption-sidebar" id="encryption-sidebar">
+        <div class="sidebar-title">
+          <span>🖼️</span> Encryption Pipeline
+          <button class="animation-toggle" id="animation-toggle" title="Animate XOR pipeline">▶ Animate</button>
+        </div>
+
+        <!-- Image 1: Message -->
+        <div class="image-card">
+          <div class="image-card-header">
+            <span class="image-card-label message-label">① Message Image</span>
+            <span class="image-card-number">TEXT → PX</span>
+          </div>
+          <canvas id="canvas-message" width="64" height="64"></canvas>
+        </div>
+
+        <!-- Image 2: Key -->
+        <div class="image-card">
+          <div class="image-card-header">
+            <span class="image-card-label key-label">② Key Image</span>
+            <span class="image-card-number">RANDOM</span>
+          </div>
+          <canvas id="canvas-key" width="64" height="64"></canvas>
+        </div>
+
+        <!-- Image 3: Cipher -->
+        <div class="image-card">
+          <div class="image-card-header">
+            <span class="image-card-label cipher-label">③ Cipher Image</span>
+            <span class="image-card-number">MSG ⊕ KEY</span>
+          </div>
+          <canvas id="canvas-cipher" width="64" height="64"></canvas>
+        </div>
+
+        <!-- Image 4: Decrypted -->
+        <div class="image-card">
+          <div class="image-card-header">
+            <span class="image-card-label decrypted-label">④ Decrypted Image</span>
+            <span class="image-card-number">CIP ⊕ KEY</span>
+          </div>
+          <canvas id="canvas-decrypted" width="64" height="64"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/crypto.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+
+</html>
