@@ -1,6 +1,6 @@
 # 🔐 CipherChat — Enterprise-Grade E2E Pixel Encrypted Messaging
 
-![CipherChat Banner](https://raw.githubusercontent.com/GJ842/CipherChat/main/public/icon.svg) <!-- Fallback image if created or just emoji -->
+![CipherChat Banner](./public/icon.svg)
 
 **CipherChat** is a state-of-the-art, real-time messaging platform that redefines secure communication through a unique **multi-layered pixel-based cryptographic pipeline**. Unlike traditional chat apps that treat messages as mere strings, CipherChat treats everything as highly-available visual data, offering a secure, stateless, and visually verifiable encryption experience.
 
